@@ -125,6 +125,8 @@ func (p *Publisher) processBatch(ctx context.Context) int {
 		if err := p.publishItem(ctx, item); err != nil {
 			errStr := fmt.Sprintf("publish error: %v", err)
 			_ = p.repo.MarkFailed(ctx, item.ID, errStr)
+			// Break batch on network/publish failure to prevent exhausting retries on all items simultaneously
+			break
 		} else {
 			_ = p.repo.MarkPublished(ctx, item.ID)
 			processedCount++
@@ -176,3 +178,4 @@ func CalculateBackoff(attempt int, base time.Duration) time.Duration {
 	jitter := temp * 0.2 * rand.Float64()
 	return time.Duration(temp + jitter)
 }
+

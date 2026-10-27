@@ -1,4 +1,4 @@
-﻿package nats
+package nats
 
 import (
 	"fmt"
@@ -43,6 +43,8 @@ func NewClient(cfg Config) (*Client, error) {
 		nats.Timeout(cfg.ConnectTimeout),
 		nats.ReconnectWait(cfg.ReconnectWait),
 		nats.MaxReconnects(cfg.MaxReconnects),
+		nats.PingInterval(20 * time.Second),
+		nats.MaxPingsOutstanding(3),
 	}
 
 	if cfg.InsecureSkipVerify {
@@ -91,3 +93,4 @@ func (c *Client) Close() {
 func BuildSubject(appID, source, entity, action string) string {
 	return fmt.Sprintf("%s.%s.%s.%s", appID, source, entity, action)
 }
+
