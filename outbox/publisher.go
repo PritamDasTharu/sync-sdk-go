@@ -14,10 +14,11 @@ import (
 
 // PublisherConfig holds settings for the background Outbox publisher worker.
 type PublisherConfig struct {
-	BatchSize    int           // Number of pending items to poll per cycle (default 50)
-	PollInterval time.Duration // Time between poll cycles (default 500ms)
-	MaxRetries   int           // Max retries before marking an item as FAILED (default 5)
-	BaseBackoff  time.Duration // Initial retry delay (default 100ms)
+	BatchSize      int           // Number of pending items to poll per cycle (default 50)
+	PollInterval   time.Duration // Time between poll cycles (default 500ms)
+	MaxRetries     int           // Max retries before marking an item as FAILED (default 5)
+	BaseBackoff    time.Duration // Initial retry delay (default 100ms)
+	PublishTimeout time.Duration // Timeout for publishing an individual item (default 10s)
 }
 
 // Publisher is a background worker that polls the local Outbox repository and publishes events to NATS JetStream.
@@ -45,6 +46,9 @@ func NewPublisher(repo Repository, natsClient *natsTransport.Client, cfg Publish
 	if cfg.BaseBackoff <= 0 {
 		cfg.BaseBackoff = 100 * time.Millisecond
 	}
+	if cfg.PublishTimeout <= 0 {
+		cfg.PublishTimeout = 10 * time.Second
+	}
 
 	return &Publisher{
 		repo:       repo,
@@ -53,6 +57,11 @@ func NewPublisher(repo Repository, natsClient *natsTransport.Client, cfg Publish
 		cfg:        cfg,
 		stopChan:   make(chan struct{}),
 	}
+}
+
+// Config returns the active PublisherConfig settings.
+func (p *Publisher) Config() PublisherConfig {
+	return p.cfg
 }
 
 // Start launches the background polling loop.
@@ -146,7 +155,11 @@ func (p *Publisher) publishItem(ctx context.Context, item OutboxItem) error {
 		return fmt.Errorf("jetstream context is nil")
 	}
 
-	_, err = js.PublishMsg(msg, nats.Context(ctx))
+	// Enforce bounded publish timeout to prevent indefinite socket hangs
+	pubCtx, cancel := context.WithTimeout(ctx, p.cfg.PublishTimeout)
+	defer cancel()
+
+	_, err = js.PublishMsg(msg, nats.Context(pubCtx))
 	if err != nil {
 		return fmt.Errorf("jetstream publish failed on subject %s: %w", subject, err)
 	}

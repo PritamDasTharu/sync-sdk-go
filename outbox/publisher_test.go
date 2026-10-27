@@ -1,4 +1,4 @@
-﻿package outbox_test
+package outbox_test
 
 import (
 	"context"
@@ -117,3 +117,37 @@ func TestCalculateBackoff(t *testing.T) {
 		}
 	}
 }
+
+func TestPublisherConfigDefaults(t *testing.T) {
+	repo := NewMockRepository()
+	p := outbox.NewPublisher(repo, nil, outbox.PublisherConfig{})
+
+	cfg := p.Config()
+	if cfg.PublishTimeout != 10*time.Second {
+		t.Fatalf("expected default PublishTimeout of 10s, got %v", cfg.PublishTimeout)
+	}
+	if cfg.BatchSize != 50 {
+		t.Fatalf("expected default BatchSize of 50, got %d", cfg.BatchSize)
+	}
+	if cfg.PollInterval != 500*time.Millisecond {
+		t.Fatalf("expected default PollInterval of 500ms, got %v", cfg.PollInterval)
+	}
+}
+
+func TestPublisherConfigCustom(t *testing.T) {
+	repo := NewMockRepository()
+	customCfg := outbox.PublisherConfig{
+		PublishTimeout: 5 * time.Second,
+		BatchSize:      100,
+	}
+	p := outbox.NewPublisher(repo, nil, customCfg)
+
+	cfg := p.Config()
+	if cfg.PublishTimeout != 5*time.Second {
+		t.Fatalf("expected custom PublishTimeout of 5s, got %v", cfg.PublishTimeout)
+	}
+	if cfg.BatchSize != 100 {
+		t.Fatalf("expected custom BatchSize of 100, got %d", cfg.BatchSize)
+	}
+}
+
